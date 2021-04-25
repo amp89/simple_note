@@ -33,6 +33,16 @@ assert SECRET_KEY and len(SECRET_KEY) > 25
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True if int(os.environ['DJANGO_DEBUG']) else False
 
+USE_PG = True if int(os.environ['DJANGO_USE_PG']) else False
+if USE_PG:
+    PG_HOST = os.environ["DJANGO_PG_HOST"]
+    PG_NAME = os.environ["DJANGO_PG_NAME"]
+    PG_USER = os.environ["DJANGO_PG_USER"]
+    PG_PASS = os.environ["DJANGO_PG_PASS"]
+    PG_PORT = os.environ["DJANGO_PG_PORT"]
+    
+
+
 ALLOWED_HOSTS = [h.strip() for h in os.environ["DJANGO_HOSTS"].split(",")]
 
 
@@ -126,12 +136,24 @@ WSGI_APPLICATION = 'simplenote.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/3.2/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+if USE_PG:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.postgresql',
+            'NAME': PG_NAME,
+            'USER': PG_USER,
+            'PASSWORD': PG_PASS,
+            'HOST': PG_HOST,
+            'PORT': PG_PORT,
+        }
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 
 # Password validation
