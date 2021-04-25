@@ -1,0 +1,218 @@
+ 
+{% extends 'base.html' %}
+{% load static %}
+
+{% block content %}
+
+{% if user.is_authenticated %}
+
+<style>
+.note{
+    width:80%;
+}
+
+.copied{
+    color:red;
+}
+
+</style>
+
+<div id='noteApp'>
+    {% comment %} <div>[[currentNewNote]]</div> {% endcomment %}
+    <div>
+        <input class="note" placeholder="Enter text for new note" v-model="currentNewNote" v-on:keyup.enter="postNote()"></input>
+        <button v-on:click="postNote()"  class="btn btn-primary">Add</button>
+        <button v-on:click="clearNew()"  class="btn btn-primary">Clear</button>
+    </div>
+    <br>
+    
+    <div>
+        <label for="filter">Filter:</label>
+        <input id="filter" class="note" placeholder="Start typing to filter notes" v-model="filterText"></input>
+        <button v-on:click="clearFilter()"  class="btn btn-primary">Clear</button>
+        
+    </div>
+
+    <br>
+    <br>
+    <div>
+        <h2 class='text-center'>Notes</h2>
+    </div>
+
+    <div v-if="filterText" class='text-center'>
+        Filtered on "[[filterText]]" <button class="btn btn-primary" v-on:click="clearFilter()">Clear</button>
+    </div>
+    
+    <hr>
+    <table class="table">
+        <tbody>
+            <tr v-for="note in displayNotes" :key='note.id'>
+                <td v-if="note.id == currentEditId" class='note'>
+                    <input class='note' v-model:value="currentEditNote" v-on:keyup.enter="patchNote()">                    
+                </td>
+                <td v-else class='note'>[[note.content]]</td>
+
+                <td v-if="note.id != currentEditId">
+                    <a v-if="note.id != copiedId" href="javascript:void(0);" v-on:click="copyNote(note.id)" data-toggle="tooltip" data-placement="top" title="Copy"><i class="fas fa-copy"></i></a>
+                    <a v-else href="javascript:void(0);" class="copied" v-on:click="copyNote(note.id)" data-toggle="tooltip" data-placement="top" title="Copy"><i class="fas fa-copy"></i></a>
+                </td>
+
+                <td v-if="note.id == currentEditId">
+                    <a href="javascript:void(0);" v-on:click="patchNote()" data-toggle="tooltip" data-placement="top" title="Save"><i class="fas fa-save"></i></a>
+                </td>
+                <td v-else><a href="javascript:void(0);" v-on:click="editNote(note.id)" data-toggle="tooltip" data-placement="top" title="Edit"><i class="fas fa-edit"></i></a></td>
+
+                <td v-if="note.id == currentEditId"><a href="javascript:void(0);" v-on:click="cancelEdit()"  data-toggle="tooltip" data-placement="top" title="Cancel"><i class="fas fa-window-close"></i></td>
+                <td v-else><a href="javascript:void(0);" v-on:click="deleteNote(note.id)"  data-toggle="tooltip" data-placement="top" title="Delete"><i class="fas fa-trash-alt"></i></a></td>
+            </tr>
+        </tbody>
+
+
+
+    </table>
+
+
+
+</div>
+
+<script>
+
+const noteUrl = "{% url 'note' %}"
+
+
+const app = new Vue({
+    delimiters: ["[[", "]]"],
+    el: "#noteApp",
+    data: {
+        
+        notes: [],
+        currentEditId: null,
+        currentEditNote: "",
+        currentNewNote: "",
+        copiedId: null,
+        filterText: ""
+        
+    },
+    methods: {
+        sortNotes: function(){
+            this.notes.sort((a,b) => (a.id > b.id) ? -1: 1)
+        },
+        clearFilter: function(){
+            this.filterText = ""
+        },
+        loadNotes: function(){
+            axios.get(noteUrl).then(
+                r => {
+                        this.notes = r.data
+                        
+                        this.sortNotes()
+                    }
+            ).catch(
+                e => console.error("Error: " + e)
+            )
+
+        },
+        copyNote: function(noteId){
+            var textArea = document.createElement("textarea");
+            textArea.value = this.notes.filter(e => e.id == noteId)[0].content
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            document.execCommand("copy");
+            document.body.removeChild(textArea);
+            this.copiedId = noteId
+                        
+
+        },
+        clearNew: function(){
+            this.currentNewNote = ""
+        },
+        editNote: function(noteId){
+            this.currentEditId = noteId
+            this.currentEditNote = this.notes.filter(n => n.id == noteId)[0].content
+        },
+        cancelEdit: function(){
+            this.currentEditId = null
+        },
+        
+        
+        postNote: function(){
+            if (this.currentNewNote){
+                axios.post(noteUrl, {"content":this.currentNewNote}).then(
+                    r => {
+                        this.loadNotes()
+                        this.currentNewNote = ""
+                    }
+                ).catch(
+                    e => console.error("Error: " + e)
+                )
+            }else{
+                console.error("Blank notes not allowed")
+            }
+            
+        },
+        patchNote: function(){
+            axios.patch(noteUrl + this.currentEditId, {"content":this.currentEditNote}).then(
+                r => {
+                    this.loadNotes()
+                    this.currentEditNote = ""
+                    this.currentEditId = null
+                }
+            ).catch(
+                e => console.error("Error: " + e)
+            )
+        },
+        deleteNote: function(noteId){
+            if(confirm("Are you sure you want to delete that note??")){
+                axios.delete(noteUrl + noteId).then(
+                    r => this.loadNotes()
+                ).catch(
+                    e => console.error("Error: " + e)
+                )
+            }
+            
+        },
+        
+        
+    },
+
+    mounted:function(){
+        //do this when mounted
+        let loadFxn = this.loadNotes
+        loadFxn()
+
+        let loadCounter = 0
+        let maxLoad = 50
+        
+        setInterval(function(){ 
+            if(document.hasFocus() && loadCounter <= maxLoad){
+                loadCounter++
+                loadFxn()                
+            }
+        }, 30*1000)
+            
+
+
+        
+
+            
+    },
+    computed:{
+        
+        displayNotes: function(){
+
+            if (this.filterText){
+                return this.notes.filter(n => n.content.indexOf(this.filterText) > -1)
+            }else{
+                return this.notes
+            }
+        }
+    }
+})
+
+
+
+</script>
+{% endif %}
+
+{% endblock %}
